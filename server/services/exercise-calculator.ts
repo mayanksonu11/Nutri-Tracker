@@ -2,42 +2,47 @@ import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
-interface ExerciseCalorieData {
+interface ExerciseAnalysisData {
+  activity: string;
   caloriesBurned: number;
-  exerciseType: string;
-  intensity: string;
+  duration: number;
 }
 
-export async function analyzeExerciseDescription(description: string, duration: number, weight: number = 70): Promise<ExerciseCalorieData> {
+export async function analyzeExerciseDescription(description: string, weight: number = 70): Promise<ExerciseAnalysisData> {
   try {
-    const systemPrompt = `You are a fitness expert. Analyze the exercise description and calculate calories burned.
+    const systemPrompt = `You are a fitness expert who analyzes exercise descriptions and determines both duration and calories burned.
 
-Please provide the exercise analysis in JSON format with the following structure:
+Given an exercise description and user's weight in kg, determine:
+1. The most likely duration for this exercise session (in minutes)
+2. Calculate calories burned using standard METs values
+
+Use standard METs (Metabolic Equivalent of Task) values for accurate calculations:
+- Formula: Calories = METs × weight(kg) × duration(hours)
+
+Common MET values and typical durations:
+- Walking (3 mph): 3.5 METs, typical 30-60 min
+- Running (6 mph): 10 METs, typical 20-45 min
+- Cycling (moderate): 8 METs, typical 30-60 min
+- Swimming: 8 METs, typical 30-45 min
+- Weight training: 6 METs, typical 45-60 min
+- Yoga: 3 METs, typical 60-90 min
+- Basketball: 8 METs, typical 30-60 min
+- Soccer: 7 METs, typical 60-90 min
+- HIIT workout: 8 METs, typical 20-30 min
+- Pilates: 3 METs, typical 45-60 min
+
+Estimate realistic duration based on:
+- Type of exercise (cardio vs strength vs flexibility)
+- Intensity mentioned in description
+- Common workout patterns
+- Context clues in the description
+
+Respond with JSON in this exact format:
 {
-  "caloriesBurned": number,
-  "exerciseType": string,
-  "intensity": string
-}
-
-Calculate calories burned based on:
-- Exercise description: "${description}"
-- Duration: ${duration} minutes
-- Body weight: ${weight} kg (if not specified, assume 70kg)
-
-Values should be:
-- caloriesBurned: total calories burned as a number (be realistic based on exercise type, intensity, and duration)
-- exerciseType: simplified exercise category (e.g., "Running", "Weight Training", "Cycling", "Swimming", "Walking")
-- intensity: intensity level ("Low", "Moderate", "High", "Very High")
-
-Use standard MET (Metabolic Equivalent) values for accuracy:
-- Walking (3 mph): 3.5 METs
-- Running (6 mph): 10 METs
-- Cycling (moderate): 8 METs
-- Swimming: 8-11 METs
-- Weight training: 6 METs
-- Yoga: 3 METs
-
-Formula: Calories = METs × weight(kg) × duration(hours)`;
+  "activity": "brief descriptive name of the activity",
+  "duration": number_in_minutes,
+  "caloriesBurned": number
+}`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -47,21 +52,25 @@ Formula: Calories = METs × weight(kg) × duration(hours)`;
         responseSchema: {
           type: "object",
           properties: {
+            activity: { type: "string" },
+            duration: { type: "number" },
             caloriesBurned: { type: "number" },
-            exerciseType: { type: "string" },
-            intensity: { type: "string" },
           },
-          required: ["caloriesBurned", "exerciseType", "intensity"],
+          required: ["activity", "duration", "caloriesBurned"],
         },
       },
-      contents: `Analyze this exercise: ${description} for ${duration} minutes`,
+      contents: `Exercise: ${description}\nUser weight: ${weight} kg\n\nAnalyze this exercise, estimate realistic duration, and calculate calories burned.`,
     });
 
     const rawJson = response.text;
 
     if (rawJson) {
-      const data: ExerciseCalorieData = JSON.parse(rawJson);
-      return data;
+      const data: ExerciseAnalysisData = JSON.parse(rawJson);
+      return {
+        activity: data.activity,
+        duration: Math.round(data.duration),
+        caloriesBurned: Math.round(data.caloriesBurned),
+      };
     } else {
       throw new Error("Empty response from Gemini AI");
     }

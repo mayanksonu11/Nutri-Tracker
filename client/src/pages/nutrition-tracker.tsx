@@ -68,7 +68,7 @@ export default function NutritionTracker() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isAnalyzingExercise, setIsAnalyzingExercise] = useState(false);
   const [nutritionResult, setNutritionResult] = useState<NutritionData | null>(null);
-  const [exerciseResult, setExerciseResult] = useState<{ activity: string; caloriesBurned: number } | null>(null);
+  const [exerciseResult, setExerciseResult] = useState<{ activity: string; caloriesBurned: number; duration: number } | null>(null);
   const [showProfileSetup, setShowProfileSetup] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -83,7 +83,6 @@ export default function NutritionTracker() {
     resolver: zodResolver(analyzeExerciseSchema),
     defaultValues: {
       description: "",
-      duration: 30,
     },
   });
 
@@ -216,7 +215,7 @@ export default function NutritionTracker() {
 
   // Analyze exercise mutation
   const analyzeExerciseMutation = useMutation({
-    mutationFn: async (data: { description: string; duration: number }) => {
+    mutationFn: async (data: { description: string }) => {
       const response = await apiRequest("POST", "/api/exercise/analyze", data);
       return response.json();
     },
@@ -294,7 +293,7 @@ export default function NutritionTracker() {
     }
   };
 
-  const onExerciseSubmit = async (data: { description: string; duration: number }) => {
+  const onExerciseSubmit = async (data: { description: string }) => {
     setIsAnalyzingExercise(true);
     analyzeExerciseMutation.mutate(data);
   };
@@ -303,7 +302,6 @@ export default function NutritionTracker() {
     if (exerciseResult) {
       addExerciseEntryMutation.mutate({
         ...exerciseResult,
-        duration: exerciseForm.getValues().duration,
       });
     }
   };
@@ -678,29 +676,9 @@ export default function NutritionTracker() {
                           <FormLabel>Exercise Description</FormLabel>
                           <FormControl>
                             <Textarea
-                              placeholder="e.g., 30 minute jog in the park, 45 minute weight training session, swimming laps..."
+                              placeholder="e.g., morning jog in the park, intense weight training session, swimming laps, yoga class, basketball game..."
                               className="min-h-[80px] resize-none"
                               {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={exerciseForm.control}
-                      name="duration"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Duration (minutes)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min="1"
-                              max="300"
-                              {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                             />
                           </FormControl>
                           <FormMessage />
@@ -738,7 +716,7 @@ export default function NutritionTracker() {
                       <div>
                         <h4 className="font-semibold text-green-900">{exerciseResult.activity}</h4>
                         <p className="text-sm text-green-700">
-                          {exerciseResult.caloriesBurned} calories burned
+                          {exerciseResult.caloriesBurned} calories burned • {exerciseResult.duration} minutes
                         </p>
                       </div>
                     </div>

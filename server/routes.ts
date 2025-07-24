@@ -152,11 +152,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Analyze exercise description using Gemini AI
   app.post("/api/exercise/analyze", async (req, res) => {
     try {
-      const { description, duration } = analyzeExerciseSchema.parse(req.body);
+      const { description } = analyzeExerciseSchema.parse(req.body);
       const profile = await storage.getUserProfile();
       const weight = profile?.currentWeight || 70; // Default to 70kg if no profile
       
-      const exerciseData = await analyzeExerciseDescription(description, duration, weight);
+      const exerciseData = await analyzeExerciseDescription(description, weight);
       res.json(exerciseData);
     } catch (error) {
       console.error("Error analyzing exercise:", error);

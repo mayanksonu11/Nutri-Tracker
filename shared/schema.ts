@@ -42,7 +42,7 @@ export const userProfile = pgTable("user_profile", {
 
 export const exerciseEntries = pgTable("exercise_entries", {
   id: serial("id").primaryKey(),
-  description: text("description").notNull(),
+  activity: text("activity").notNull(),
   caloriesBurned: real("calories_burned").notNull(),
   duration: integer("duration").notNull(), // in minutes
   timestamp: timestamp("timestamp").notNull().defaultNow(),
@@ -82,7 +82,6 @@ export const analyzeFoodSchema = z.object({
 
 export const analyzeExerciseSchema = z.object({
   description: z.string().min(1, "Exercise description is required"),
-  duration: z.number().min(1, "Duration must be at least 1 minute"),
 });
 
 export const calculateGoalsSchema = z.object({
