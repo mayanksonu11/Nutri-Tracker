@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { analyzeFoodSchema, insertFoodEntrySchema, insertDailyGoalsSchema } from "@shared/schema";
+import { analyzeFoodSchema, insertFoodEntrySchema, insertDailyGoalsSchema, insertUserProfileSchema, calculateGoalsSchema } from "@shared/schema";
 import { analyzeFoodDescription } from "./services/gemini";
+import { calculatePersonalizedGoals } from "./services/nutrition-calculator";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -92,6 +93,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating daily goals:", error);
       res.status(500).json({ message: "Failed to update daily goals" });
+    }
+  });
+
+  // Get user profile
+  app.get("/api/profile", async (req, res) => {
+    try {
+      const profile = await storage.getUserProfile();
+      res.json(profile);
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      res.status(500).json({ message: "Failed to fetch user profile" });
+    }
+  });
+
+  // Create or update user profile
+  app.post("/api/profile", async (req, res) => {
+    try {
+      const profileData = insertUserProfileSchema.parse(req.body);
+      const existingProfile = await storage.getUserProfile();
+      
+      let profile;
+      if (existingProfile) {
+        profile = await storage.updateUserProfile(profileData);
+      } else {
+        profile = await storage.createUserProfile(profileData);
+      }
+      
+      res.json(profile);
+    } catch (error) {
+      console.error("Error saving user profile:", error);
+      res.status(500).json({ message: "Failed to save user profile" });
+    }
+  });
+
+  // Calculate personalized nutrition goals
+  app.post("/api/calculate-goals", async (req, res) => {
+    try {
+      const requestData = calculateGoalsSchema.parse(req.body);
+      const calculatedGoals = calculatePersonalizedGoals(requestData);
+      
+      // Update daily goals with calculated values
+      await storage.updateDailyGoals({
+        calories: calculatedGoals.calories,
+        carbs: calculatedGoals.carbs,
+        protein: calculatedGoals.protein,
+        fat: calculatedGoals.fat,
+      });
+      
+      res.json(calculatedGoals);
+    } catch (error) {
+      console.error("Error calculating goals:", error);
+      res.status(500).json({ message: "Failed to calculate nutrition goals" });
     }
   });
 

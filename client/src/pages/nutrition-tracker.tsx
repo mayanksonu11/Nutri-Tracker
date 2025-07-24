@@ -33,8 +33,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { analyzeFoodSchema, type FoodEntry, type DailyGoals, type NutritionData } from "@shared/schema";
+import { analyzeFoodSchema, type FoodEntry, type DailyGoals, type NutritionData, type UserProfile } from "@shared/schema";
 import { cn } from "@/lib/utils";
+import ProfileSetup from "@/components/profile-setup";
 
 const NUTRITION_ICONS = {
   calories: Flame,
@@ -61,6 +62,7 @@ export default function NutritionTracker() {
   const { toast } = useToast();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [nutritionResult, setNutritionResult] = useState<NutritionData | null>(null);
+  const [showProfileSetup, setShowProfileSetup] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(analyzeFoodSchema),
@@ -80,6 +82,11 @@ export default function NutritionTracker() {
   // Fetch daily goals
   const { data: dailyGoals } = useQuery<DailyGoals>({
     queryKey: ['/api/goals'],
+  });
+
+  // Fetch user profile
+  const { data: userProfile } = useQuery<UserProfile>({
+    queryKey: ['/api/profile'],
   });
 
   // Calculate current totals
@@ -191,6 +198,18 @@ export default function NutritionTracker() {
     return Math.max(goal - current, 0);
   };
 
+  // Show profile setup if no profile exists or if explicitly requested
+  if (showProfileSetup || !userProfile) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <ProfileSetup 
+          onComplete={() => setShowProfileSetup(false)}
+          existingProfile={userProfile}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -207,7 +226,12 @@ export default function NutritionTracker() {
               <Button variant="ghost" size="icon" className="text-gray-400 hover:text-gray-600">
                 <Bell className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="text-gray-400 hover:text-gray-600">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-gray-400 hover:text-gray-600"
+                onClick={() => setShowProfileSetup(true)}
+              >
                 <Settings className="h-5 w-5" />
               </Button>
             </div>

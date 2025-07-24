@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a full-stack nutrition tracking application built with React (frontend) and Express.js (backend). The app allows users to log food entries, analyze nutritional content using AI, and track their daily nutrition goals. It features a modern UI built with shadcn/ui components and Tailwind CSS, with AI-powered food analysis using Google's Gemini API.
+This is a full-stack nutrition tracking application built with React (frontend) and Express.js (backend). The app allows users to log food entries, analyze nutritional content using AI, and track their personalized daily nutrition goals. It features a modern UI built with shadcn/ui components and Tailwind CSS, with AI-powered food analysis using Google's Gemini API and scientific BMR/TDEE calculations for personalized goal setting.
 
 ## User Preferences
 
@@ -38,17 +38,20 @@ The application follows a traditional client-server architecture with a clear se
 - **API Design**: RESTful endpoints with JSON responses
 
 ### Database Schema
-The application uses three main tables:
+The application uses four main tables:
 - **users**: Basic user authentication (id, username, password)
 - **food_entries**: Daily food logs with nutritional data (calories, carbs, protein, fat)
-- **daily_goals**: User's nutritional targets
+- **daily_goals**: User's nutritional targets (automatically calculated based on profile)
+- **user_profile**: Personal information for goal calculation (age, gender, weight, height, activity level, timeframe)
 
 ### Key Features
-- AI-powered food analysis using natural language descriptions
-- Daily nutrition tracking with progress visualization
-- Real-time nutritional data calculation
-- Responsive design with mobile support
-- Form validation with comprehensive error handling
+- **Personalized Goal Calculation**: Uses BMR and TDEE formulas based on user's age, gender, weight, height, activity level, and timeframe to calculate optimal daily nutrition targets
+- **AI-powered food analysis**: Natural language food descriptions automatically converted to nutritional data using Google Gemini
+- **Weight Goal Management**: Supports weight loss, gain, or maintenance with safe weekly targets and calorie adjustments
+- **Activity Level Integration**: Five activity levels from sedentary to extremely active for accurate calorie calculations
+- **Daily nutrition tracking**: Progress visualization with real-time updates against personalized goals
+- **Profile Management**: Complete user setup wizard with review and calculation steps
+- **Responsive design**: Mobile-friendly interface with modern shadcn/ui components
 
 ## Data Flow
 

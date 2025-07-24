@@ -27,6 +27,19 @@ export const dailyGoals = pgTable("daily_goals", {
   fat: real("fat").notNull().default(78),
 });
 
+export const userProfile = pgTable("user_profile", {
+  id: serial("id").primaryKey(),
+  age: integer("age").notNull(),
+  gender: text("gender").notNull(), // 'male' or 'female'
+  currentWeight: real("current_weight").notNull(), // in kg
+  targetWeight: real("target_weight").notNull(), // in kg
+  height: real("height").notNull(), // in cm
+  activityLevel: text("activity_level").notNull(), // 'sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extremely_active'
+  timeframe: integer("timeframe").notNull().default(6), // months to reach goal
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -42,8 +55,24 @@ export const insertDailyGoalsSchema = createInsertSchema(dailyGoals).omit({
   id: true,
 });
 
+export const insertUserProfileSchema = createInsertSchema(userProfile).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const analyzeFoodSchema = z.object({
   description: z.string().min(1, "Food description is required"),
+});
+
+export const calculateGoalsSchema = z.object({
+  age: z.number().min(1).max(120),
+  gender: z.enum(['male', 'female']),
+  currentWeight: z.number().min(1).max(500),
+  targetWeight: z.number().min(1).max(500),
+  height: z.number().min(50).max(300),
+  activityLevel: z.enum(['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extremely_active']),
+  timeframe: z.number().min(1).max(24),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -52,7 +81,10 @@ export type FoodEntry = typeof foodEntries.$inferSelect;
 export type InsertFoodEntry = z.infer<typeof insertFoodEntrySchema>;
 export type DailyGoals = typeof dailyGoals.$inferSelect;
 export type InsertDailyGoals = z.infer<typeof insertDailyGoalsSchema>;
+export type UserProfile = typeof userProfile.$inferSelect;
+export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
 export type AnalyzeFoodRequest = z.infer<typeof analyzeFoodSchema>;
+export type CalculateGoalsRequest = z.infer<typeof calculateGoalsSchema>;
 
 export interface NutritionData {
   calories: number;

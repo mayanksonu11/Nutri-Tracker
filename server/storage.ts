@@ -1,4 +1,4 @@
-import { users, foodEntries, dailyGoals, type User, type InsertUser, type FoodEntry, type InsertFoodEntry, type DailyGoals, type InsertDailyGoals } from "@shared/schema";
+import { users, foodEntries, dailyGoals, userProfile, type User, type InsertUser, type FoodEntry, type InsertFoodEntry, type DailyGoals, type InsertDailyGoals, type UserProfile, type InsertUserProfile } from "@shared/schema";
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -13,12 +13,18 @@ export interface IStorage {
   // Daily goals
   getDailyGoals(): Promise<DailyGoals>;
   updateDailyGoals(goals: InsertDailyGoals): Promise<DailyGoals>;
+  
+  // User profile
+  getUserProfile(): Promise<UserProfile | undefined>;
+  createUserProfile(profile: InsertUserProfile): Promise<UserProfile>;
+  updateUserProfile(profile: Partial<InsertUserProfile>): Promise<UserProfile>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private foodEntries: Map<number, FoodEntry>;
   private dailyGoals: DailyGoals;
+  private userProfileData: UserProfile | undefined;
   private currentUserId: number;
   private currentFoodEntryId: number;
 
@@ -27,6 +33,7 @@ export class MemStorage implements IStorage {
     this.foodEntries = new Map();
     this.currentUserId = 1;
     this.currentFoodEntryId = 1;
+    this.userProfileData = undefined;
     this.dailyGoals = {
       id: 1,
       calories: 2000,
@@ -81,6 +88,34 @@ export class MemStorage implements IStorage {
   async updateDailyGoals(goals: InsertDailyGoals): Promise<DailyGoals> {
     this.dailyGoals = { ...this.dailyGoals, ...goals };
     return this.dailyGoals;
+  }
+
+  async getUserProfile(): Promise<UserProfile | undefined> {
+    return this.userProfileData;
+  }
+
+  async createUserProfile(profile: InsertUserProfile): Promise<UserProfile> {
+    const userProfile: UserProfile = {
+      ...profile,
+      id: 1,
+      timeframe: profile.timeframe || 6,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.userProfileData = userProfile;
+    return userProfile;
+  }
+
+  async updateUserProfile(profile: Partial<InsertUserProfile>): Promise<UserProfile> {
+    if (!this.userProfileData) {
+      throw new Error("No user profile exists");
+    }
+    this.userProfileData = {
+      ...this.userProfileData,
+      ...profile,
+      updatedAt: new Date(),
+    };
+    return this.userProfileData;
   }
 }
 
