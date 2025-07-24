@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format } from "date-fns";
+import { format, subDays, addDays, isToday } from "date-fns";
 import { 
   Bell, 
   Settings, 
@@ -24,16 +24,21 @@ import {
   Target,
   Lightbulb,
   Clock,
-  Check
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Activity,
+  Timer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { analyzeFoodSchema, type FoodEntry, type DailyGoals, type NutritionData, type UserProfile } from "@shared/schema";
+import { analyzeFoodSchema, analyzeExerciseSchema, type FoodEntry, type ExerciseEntry, type DailyGoals, type NutritionData, type UserProfile } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import ProfileSetup from "@/components/profile-setup";
 
@@ -61,8 +66,11 @@ const NUTRITION_BADGE_COLORS = {
 export default function NutritionTracker() {
   const { toast } = useToast();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isAnalyzingExercise, setIsAnalyzingExercise] = useState(false);
   const [nutritionResult, setNutritionResult] = useState<NutritionData | null>(null);
+  const [exerciseResult, setExerciseResult] = useState<{ activity: string; caloriesBurned: number } | null>(null);
   const [showProfileSetup, setShowProfileSetup] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   const form = useForm({
     resolver: zodResolver(analyzeFoodSchema),
@@ -71,12 +79,40 @@ export default function NutritionTracker() {
     },
   });
 
-  // Get today's date
-  const today = new Date().toISOString().split('T')[0];
+  const exerciseForm = useForm({
+    resolver: zodResolver(analyzeExerciseSchema),
+    defaultValues: {
+      description: "",
+      duration: 30,
+    },
+  });
 
-  // Fetch today's food entries
+  // Get current date string
+  const currentDateString = format(currentDate, 'yyyy-MM-dd');
+  const isCurrentDateToday = isToday(currentDate);
+
+  // Fetch food entries for current date
   const { data: foodEntries = [], isLoading: entriesLoading } = useQuery<FoodEntry[]>({
-    queryKey: ['/api/food/entries/today'],
+    queryKey: ['/api/food/entries', currentDateString],
+    queryFn: () => {
+      if (isCurrentDateToday) {
+        return fetch('/api/food/entries/today').then(res => res.json());
+      } else {
+        return fetch(`/api/food/entries/${currentDateString}`).then(res => res.json());
+      }
+    },
+  });
+
+  // Fetch exercise entries for current date
+  const { data: exerciseEntries = [], isLoading: exerciseEntriesLoading } = useQuery<ExerciseEntry[]>({
+    queryKey: ['/api/exercise/entries', currentDateString],
+    queryFn: () => {
+      if (isCurrentDateToday) {
+        return fetch('/api/exercise/entries/today').then(res => res.json());
+      } else {
+        return fetch(`/api/exercise/entries/${currentDateString}`).then(res => res.json());
+      }
+    },
   });
 
   // Fetch daily goals
@@ -89,8 +125,8 @@ export default function NutritionTracker() {
     queryKey: ['/api/profile'],
   });
 
-  // Calculate current totals
-  const currentTotals = foodEntries.reduce(
+  // Calculate current totals from food
+  const foodTotals = foodEntries.reduce(
     (totals, entry: FoodEntry) => ({
       calories: totals.calories + entry.calories,
       carbs: totals.carbs + entry.carbs,
@@ -99,6 +135,18 @@ export default function NutritionTracker() {
     }),
     { calories: 0, carbs: 0, protein: 0, fat: 0 }
   );
+
+  // Calculate total calories burned from exercise
+  const totalCaloriesBurned = exerciseEntries.reduce(
+    (total, entry: ExerciseEntry) => total + entry.caloriesBurned,
+    0
+  );
+
+  // Calculate net totals (food calories minus exercise calories)
+  const currentTotals = {
+    ...foodTotals,
+    calories: foodTotals.calories - totalCaloriesBurned,
+  };
 
   // Analyze food mutation
   const analyzeFoodMutation = useMutation({
@@ -127,7 +175,7 @@ export default function NutritionTracker() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/food/entries/today'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/food/entries', currentDateString] });
       setNutritionResult(null);
       form.reset();
       toast({
@@ -151,7 +199,7 @@ export default function NutritionTracker() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/food/entries/today'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/food/entries', currentDateString] });
       toast({
         title: "Food Entry Deleted",
         description: "The food entry has been removed from your log.",
@@ -161,6 +209,72 @@ export default function NutritionTracker() {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to delete food entry",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Analyze exercise mutation
+  const analyzeExerciseMutation = useMutation({
+    mutationFn: async (data: { description: string; duration: number }) => {
+      const response = await apiRequest("POST", "/api/exercise/analyze", data);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setExerciseResult(data);
+      setIsAnalyzingExercise(false);
+    },
+    onError: (error) => {
+      setIsAnalyzingExercise(false);
+      toast({
+        title: "Analysis Failed",
+        description: error instanceof Error ? error.message : "Failed to analyze exercise description",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Add exercise entry mutation
+  const addExerciseEntryMutation = useMutation({
+    mutationFn: async (data: { activity: string; caloriesBurned: number; duration: number }) => {
+      const response = await apiRequest("POST", "/api/exercise/entries", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/exercise/entries', currentDateString] });
+      setExerciseResult(null);
+      exerciseForm.reset();
+      toast({
+        title: "Exercise Added Successfully!",
+        description: "Your exercise has been logged.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add exercise entry",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete exercise entry mutation
+  const deleteExerciseEntryMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiRequest("DELETE", `/api/exercise/entries/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/exercise/entries', currentDateString] });
+      toast({
+        title: "Exercise Entry Deleted",
+        description: "The exercise entry has been removed from your log.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete exercise entry",
         variant: "destructive",
       });
     },
@@ -180,8 +294,26 @@ export default function NutritionTracker() {
     }
   };
 
+  const onExerciseSubmit = async (data: { description: string; duration: number }) => {
+    setIsAnalyzingExercise(true);
+    analyzeExerciseMutation.mutate(data);
+  };
+
+  const addExerciseToLog = () => {
+    if (exerciseResult) {
+      addExerciseEntryMutation.mutate({
+        ...exerciseResult,
+        duration: exerciseForm.getValues().duration,
+      });
+    }
+  };
+
   const deleteEntry = (id: number) => {
     deleteFoodEntryMutation.mutate(id);
+  };
+
+  const deleteExerciseEntryHandler = (id: number) => {
+    deleteExerciseEntryMutation.mutate(id);
   };
 
   const clearAll = () => {
@@ -197,6 +329,22 @@ export default function NutritionTracker() {
   const getRemaining = (current: number, goal: number) => {
     return Math.max(goal - current, 0);
   };
+
+  // Date navigation functions
+  const goToPreviousDay = () => {
+    setCurrentDate(subDays(currentDate, 1));
+  };
+
+  const goToNextDay = () => {
+    setCurrentDate(addDays(currentDate, 1));
+  };
+
+  const goToToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  // Check if over budget for color coding
+  const isOverBudget = dailyGoals && currentTotals.calories > dailyGoals.calories;
 
   // Show profile setup if no profile exists or if explicitly requested
   if (showProfileSetup || !userProfile) {
@@ -240,22 +388,57 @@ export default function NutritionTracker() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Dashboard Header */}
+        {/* Dashboard Header with Date Navigation */}
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-1">Today's Overview</h2>
-              <p className="text-gray-600">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-1">
+                {isCurrentDateToday ? "Today's Overview" : "Daily Overview"}
+              </h2>
+              <p className="text-gray-600">{format(currentDate, "EEEE, MMMM d, yyyy")}</p>
             </div>
             <div className="flex items-center space-x-2 mt-4 sm:mt-0">
               <Button variant="outline" className="text-primary bg-primary/5 border-primary/20 hover:bg-primary/10">
                 <Download className="mr-2 h-4 w-4" />
                 Export Data
               </Button>
-              <Button variant="outline">
-                <Calendar className="mr-2 h-4 w-4" />
-                View History
-              </Button>
+              
+              {/* Date Navigation */}
+              <div className="flex items-center space-x-1 border rounded-lg p-1">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={goToPreviousDay}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                
+                <Button 
+                  variant={isCurrentDateToday ? "default" : "ghost"} 
+                  size="sm" 
+                  onClick={goToToday}
+                  className={cn(
+                    "px-3 text-sm font-medium",
+                    isOverBudget && isCurrentDateToday ? "bg-red-500 hover:bg-red-600" : "",
+                    !isOverBudget && isCurrentDateToday ? "bg-green-500 hover:bg-green-600" : "",
+                    !isCurrentDateToday && isOverBudget ? "text-red-600 hover:bg-red-50" : "",
+                    !isCurrentDateToday && !isOverBudget ? "text-green-600 hover:bg-green-50" : ""
+                  )}
+                >
+                  {isCurrentDateToday ? "Today" : format(currentDate, "MMM d")}
+                </Button>
+                
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={goToNextDay}
+                  className="h-8 w-8 p-0"
+                  disabled={isCurrentDateToday}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -403,7 +586,9 @@ export default function NutritionTracker() {
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900">Today's Food Log</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {isCurrentDateToday ? "Today's Food Log" : `Food Log - ${format(currentDate, "MMM d")}`}
+                  </h3>
                   {foodEntries.length > 0 && (
                     <Button variant="ghost" size="sm" onClick={clearAll} className="text-primary hover:text-primary/80">
                       Clear All
@@ -417,7 +602,7 @@ export default function NutritionTracker() {
                   ) : foodEntries.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <Utensils className="mx-auto h-12 w-12 mb-3 opacity-50" />
-                      <p>No food entries for today yet.</p>
+                      <p>No food entries for {isCurrentDateToday ? 'today' : 'this day'} yet.</p>
                       <p className="text-sm">Start by describing what you ate above!</p>
                     </div>
                   ) : (
@@ -470,6 +655,161 @@ export default function NutritionTracker() {
                         </div>
                       );
                     })
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Exercise Logging */}
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-3 mb-6">
+                  <Dumbbell className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold text-gray-900">Log Exercise</h3>
+                </div>
+
+                <Form {...exerciseForm}>
+                  <form onSubmit={exerciseForm.handleSubmit(onExerciseSubmit)} className="space-y-4">
+                    <FormField
+                      control={exerciseForm.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Exercise Description</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="e.g., 30 minute jog in the park, 45 minute weight training session, swimming laps..."
+                              className="min-h-[80px] resize-none"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={exerciseForm.control}
+                      name="duration"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Duration (minutes)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="300"
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button 
+                      type="submit" 
+                      className="w-full"
+                      disabled={isAnalyzingExercise}
+                    >
+                      {isAnalyzingExercise ? (
+                        <>
+                          <Activity className="mr-2 h-4 w-4 animate-spin" />
+                          Analyzing Exercise...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Analyze Exercise
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+
+                {/* Exercise Analysis Result */}
+                {exerciseResult && (
+                  <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                        <Activity className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-green-900">{exerciseResult.activity}</h4>
+                        <p className="text-sm text-green-700">
+                          {exerciseResult.caloriesBurned} calories burned
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      onClick={addExerciseToLog} 
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      disabled={addExerciseEntryMutation.isPending}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add to Exercise Log
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Exercise Log */}
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900">Exercise Log</h3>
+                  {exerciseEntries.length > 0 && (
+                    <span className="text-sm text-gray-500">
+                      {totalCaloriesBurned} calories burned
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  {exerciseEntriesLoading ? (
+                    <div className="text-center py-8 text-gray-500">Loading...</div>
+                  ) : exerciseEntries.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Dumbbell className="mx-auto h-12 w-12 mb-3 opacity-50" />
+                      <p>No exercise entries for {isCurrentDateToday ? 'today' : 'this day'} yet.</p>
+                      <p className="text-sm">Log your workout above!</p>
+                    </div>
+                  ) : (
+                    exerciseEntries.map((entry: ExerciseEntry) => (
+                      <div key={entry.id} className="flex items-start space-x-4 p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                        <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Activity className="h-5 w-5 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 mb-1">
+                                {entry.activity}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                <Timer className="inline mr-1 h-3 w-3" />
+                                {entry.duration} minutes • {format(new Date(entry.timestamp), "h:mm a")}
+                              </p>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-gray-400 hover:text-red-500"
+                              onClick={() => deleteExerciseEntryHandler(entry.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="flex items-center space-x-4 mt-2">
+                            <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-600">
+                              -{entry.caloriesBurned} cal
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               </CardContent>

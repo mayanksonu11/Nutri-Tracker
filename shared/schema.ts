@@ -40,6 +40,15 @@ export const userProfile = pgTable("user_profile", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const exerciseEntries = pgTable("exercise_entries", {
+  id: serial("id").primaryKey(),
+  description: text("description").notNull(),
+  caloriesBurned: real("calories_burned").notNull(),
+  duration: integer("duration").notNull(), // in minutes
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  date: text("date").notNull(), // YYYY-MM-DD format
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -61,8 +70,19 @@ export const insertUserProfileSchema = createInsertSchema(userProfile).omit({
   updatedAt: true,
 });
 
+export const insertExerciseEntrySchema = createInsertSchema(exerciseEntries).omit({
+  id: true,
+  timestamp: true,
+  date: true,
+});
+
 export const analyzeFoodSchema = z.object({
   description: z.string().min(1, "Food description is required"),
+});
+
+export const analyzeExerciseSchema = z.object({
+  description: z.string().min(1, "Exercise description is required"),
+  duration: z.number().min(1, "Duration must be at least 1 minute"),
 });
 
 export const calculateGoalsSchema = z.object({
@@ -79,11 +99,14 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type FoodEntry = typeof foodEntries.$inferSelect;
 export type InsertFoodEntry = z.infer<typeof insertFoodEntrySchema>;
+export type ExerciseEntry = typeof exerciseEntries.$inferSelect;
+export type InsertExerciseEntry = z.infer<typeof insertExerciseEntrySchema>;
 export type DailyGoals = typeof dailyGoals.$inferSelect;
 export type InsertDailyGoals = z.infer<typeof insertDailyGoalsSchema>;
 export type UserProfile = typeof userProfile.$inferSelect;
 export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
 export type AnalyzeFoodRequest = z.infer<typeof analyzeFoodSchema>;
+export type AnalyzeExerciseRequest = z.infer<typeof analyzeExerciseSchema>;
 export type CalculateGoalsRequest = z.infer<typeof calculateGoalsSchema>;
 
 export interface NutritionData {
