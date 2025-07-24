@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,10 +35,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { analyzeFoodSchema, analyzeExerciseSchema, type FoodEntry, type ExerciseEntry, type DailyGoals, type NutritionData, type UserProfile } from "@shared/schema";
+import { analyzeFoodSchema, analyzeExerciseSchema, manualGoalsSchema, type FoodEntry, type ExerciseEntry, type DailyGoals, type NutritionData, type UserProfile, type ManualGoalsRequest } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import ProfileSetup from "@/components/profile-setup";
 
@@ -86,6 +87,16 @@ export default function NutritionTracker() {
     },
   });
 
+  const manualGoalsForm = useForm<ManualGoalsRequest>({
+    resolver: zodResolver(manualGoalsSchema),
+    defaultValues: {
+      calories: 2000,
+      carbs: 250,
+      protein: 120,
+      fat: 78,
+    },
+  });
+
   // Get current date string
   const currentDateString = format(currentDate, 'yyyy-MM-dd');
   const isCurrentDateToday = isToday(currentDate);
@@ -123,6 +134,18 @@ export default function NutritionTracker() {
   const { data: userProfile } = useQuery<UserProfile>({
     queryKey: ['/api/profile'],
   });
+
+  // Update manual goals form when dailyGoals are loaded
+  useEffect(() => {
+    if (dailyGoals) {
+      manualGoalsForm.reset({
+        calories: dailyGoals.calories,
+        carbs: dailyGoals.carbs,
+        protein: dailyGoals.protein,
+        fat: dailyGoals.fat,
+      });
+    }
+  }, [dailyGoals, manualGoalsForm]);
 
   // Calculate current totals from food
   const foodTotals = foodEntries.reduce(
@@ -306,6 +329,32 @@ export default function NutritionTracker() {
     }
   };
 
+  // Manual goals mutation
+  const saveManualGoalsMutation = useMutation({
+    mutationFn: async (data: ManualGoalsRequest) => {
+      const response = await apiRequest("POST", "/api/goals/manual", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+      toast({
+        title: "Goals Updated",
+        description: "Your nutrition goals have been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update goals",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onManualGoalsSubmit = (data: ManualGoalsRequest) => {
+    saveManualGoalsMutation.mutate(data);
+  };
+
   const deleteEntry = (id: number) => {
     deleteFoodEntryMutation.mutate(id);
   };
@@ -396,6 +445,113 @@ export default function NutritionTracker() {
               <p className="text-gray-600">{format(currentDate, "EEEE, MMMM d, yyyy")}</p>
             </div>
             <div className="flex items-center space-x-2 mt-4 sm:mt-0">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="text-gray-600 border-gray-300 hover:bg-gray-50">
+                    <Target className="mr-2 h-4 w-4" />
+                    Set Goals
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Manual Nutrition Goals</DialogTitle>
+                  </DialogHeader>
+                  <Form {...manualGoalsForm}>
+                    <form onSubmit={manualGoalsForm.handleSubmit(onManualGoalsSubmit)} className="space-y-4">
+                      <FormField
+                        control={manualGoalsForm.control}
+                        name="calories"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Daily Calories</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="800"
+                                max="10000"
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={manualGoalsForm.control}
+                        name="carbs"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Carbs (g)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="20"
+                                max="1000"
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={manualGoalsForm.control}
+                        name="protein"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Protein (g)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="20"
+                                max="500"
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={manualGoalsForm.control}
+                        name="fat"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Fat (g)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="20"
+                                max="300"
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className="flex justify-end space-x-2 pt-4">
+                        <DialogTrigger asChild>
+                          <Button type="button" variant="outline">
+                            Cancel
+                          </Button>
+                        </DialogTrigger>
+                        <Button 
+                          type="submit" 
+                          disabled={saveManualGoalsMutation.isPending}
+                        >
+                          {saveManualGoalsMutation.isPending ? "Saving..." : "Save Goals"}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
+              
               <Button variant="outline" className="text-primary bg-primary/5 border-primary/20 hover:bg-primary/10">
                 <Download className="mr-2 h-4 w-4" />
                 Export Data

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { analyzeFoodSchema, insertFoodEntrySchema, insertDailyGoalsSchema, insertUserProfileSchema, calculateGoalsSchema, analyzeExerciseSchema, insertExerciseEntrySchema } from "@shared/schema";
+import { analyzeFoodSchema, insertFoodEntrySchema, insertDailyGoalsSchema, insertUserProfileSchema, calculateGoalsSchema, analyzeExerciseSchema, insertExerciseEntrySchema, manualGoalsSchema } from "@shared/schema";
 import { analyzeFoodDescription } from "./services/gemini";
 import { calculatePersonalizedGoals } from "./services/nutrition-calculator";
 import { analyzeExerciseDescription } from "./services/exercise-calculator";
@@ -146,6 +146,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error calculating goals:", error);
       res.status(500).json({ message: "Failed to calculate nutrition goals" });
+    }
+  });
+
+  // Set manual nutrition goals
+  app.post("/api/goals/manual", async (req, res) => {
+    try {
+      const data = manualGoalsSchema.parse(req.body);
+      
+      // Save the manual goals directly
+      await storage.updateDailyGoals({
+        calories: data.calories,
+        carbs: data.carbs,
+        protein: data.protein,
+        fat: data.fat,
+      });
+      
+      res.json({ 
+        message: "Manual goals saved successfully",
+        goals: data 
+      });
+    } catch (error) {
+      console.error("Failed to save manual goals:", error);
+      res.status(500).json({ message: "Failed to save manual goals" });
     }
   });
 

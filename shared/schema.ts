@@ -94,6 +94,13 @@ export const calculateGoalsSchema = z.object({
   timeframe: z.number().min(1).max(24),
 });
 
+export const manualGoalsSchema = z.object({
+  calories: z.number().min(800).max(10000, "Calories must be between 800 and 10000"),
+  carbs: z.number().min(20).max(1000, "Carbs must be between 20 and 1000 grams"),
+  protein: z.number().min(20).max(500, "Protein must be between 20 and 500 grams"),
+  fat: z.number().min(20).max(300, "Fat must be between 20 and 300 grams"),
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type FoodEntry = typeof foodEntries.$inferSelect;
@@ -107,6 +114,7 @@ export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
 export type AnalyzeFoodRequest = z.infer<typeof analyzeFoodSchema>;
 export type AnalyzeExerciseRequest = z.infer<typeof analyzeExerciseSchema>;
 export type CalculateGoalsRequest = z.infer<typeof calculateGoalsSchema>;
+export type ManualGoalsRequest = z.infer<typeof manualGoalsSchema>;
 
 export interface NutritionData {
   calories: number;

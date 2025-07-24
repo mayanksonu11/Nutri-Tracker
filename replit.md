@@ -46,11 +46,13 @@ The application uses four main tables:
 
 ### Key Features
 - **Personalized Goal Calculation**: Uses BMR and TDEE formulas based on user's age, gender, weight, height, activity level, and timeframe to calculate optimal daily nutrition targets
+- **Manual Goal Configuration**: Users can manually set their own calorie, carbs, protein, and fat targets based on their personal calculations or preferences
 - **AI-powered food analysis**: Natural language food descriptions automatically converted to nutritional data using Google Gemini
 - **Weight Goal Management**: Supports weight loss, gain, or maintenance with safe weekly targets and calorie adjustments
 - **Activity Level Integration**: Five activity levels from sedentary to extremely active for accurate calorie calculations
 - **Daily nutrition tracking**: Progress visualization with real-time updates against personalized goals
 - **Profile Management**: Complete user setup wizard with review and calculation steps
+- **Exercise Logging**: AI analyzes exercise descriptions to automatically determine duration and calories burned
 - **Responsive design**: Mobile-friendly interface with modern shadcn/ui components
 
 ## Data Flow
