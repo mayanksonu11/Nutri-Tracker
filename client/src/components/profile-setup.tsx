@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { localStorage as localStore } from "@/lib/localStorage";
 import { calculateGoalsSchema, type CalculateGoalsRequest, type UserProfile } from "@shared/schema";
 
 interface ProfileSetupProps {
@@ -54,11 +55,17 @@ export default function ProfileSetup({ onComplete, existingProfile }: ProfileSet
   // Save profile mutation
   const saveProfileMutation = useMutation({
     mutationFn: async (data: CalculateGoalsRequest) => {
-      const response = await apiRequest("POST", "/api/profile", data);
-      return response.json();
+      const profile: UserProfile = {
+        id: 1,
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      localStore.setUserProfile(profile);
+      return Promise.resolve(profile);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/profile'] });
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
     },
     onError: (error) => {
       toast({
@@ -73,11 +80,22 @@ export default function ProfileSetup({ onComplete, existingProfile }: ProfileSet
   const calculateGoalsMutation = useMutation({
     mutationFn: async (data: CalculateGoalsRequest) => {
       const response = await apiRequest("POST", "/api/calculate-goals", data);
-      return response.json();
+      const results = await response.json();
+      
+      // Save calculated goals to localStorage
+      localStore.setDailyGoals({
+        id: 1,
+        calories: results.calories,
+        carbs: results.carbs,
+        protein: results.protein,
+        fat: results.fat,
+      });
+      
+      return results;
     },
     onSuccess: (data) => {
       setCalculatedResults(data);
-      queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+      queryClient.invalidateQueries({ queryKey: ['daily-goals'] });
     },
     onError: (error) => {
       toast({

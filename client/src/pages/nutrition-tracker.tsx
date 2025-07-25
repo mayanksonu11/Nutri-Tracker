@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { analyzeFoodSchema, analyzeExerciseSchema, manualGoalsSchema, type FoodEntry, type ExerciseEntry, type DailyGoals, type NutritionData, type UserProfile, type ManualGoalsRequest } from "@shared/schema";
 import { cn } from "@/lib/utils";
+import { localStorage as localStore } from "@/lib/localStorage";
 import ProfileSetup from "@/components/profile-setup";
 
 const NUTRITION_ICONS = {
@@ -103,36 +104,34 @@ export default function NutritionTracker() {
 
   // Fetch food entries for current date
   const { data: foodEntries = [], isLoading: entriesLoading } = useQuery<FoodEntry[]>({
-    queryKey: ['/api/food/entries', currentDateString],
+    queryKey: ['food-entries', currentDateString],
     queryFn: () => {
-      if (isCurrentDateToday) {
-        return fetch('/api/food/entries/today').then(res => res.json());
-      } else {
-        return fetch(`/api/food/entries/${currentDateString}`).then(res => res.json());
-      }
+      return Promise.resolve(localStore.getFoodEntries(currentDateString));
     },
   });
 
   // Fetch exercise entries for current date
   const { data: exerciseEntries = [], isLoading: exerciseEntriesLoading } = useQuery<ExerciseEntry[]>({
-    queryKey: ['/api/exercise/entries', currentDateString],
+    queryKey: ['exercise-entries', currentDateString],
     queryFn: () => {
-      if (isCurrentDateToday) {
-        return fetch('/api/exercise/entries/today').then(res => res.json());
-      } else {
-        return fetch(`/api/exercise/entries/${currentDateString}`).then(res => res.json());
-      }
+      return Promise.resolve(localStore.getExerciseEntries(currentDateString));
     },
   });
 
   // Fetch daily goals
   const { data: dailyGoals } = useQuery<DailyGoals>({
-    queryKey: ['/api/goals'],
+    queryKey: ['daily-goals'],
+    queryFn: () => {
+      return Promise.resolve(localStore.getDailyGoals());
+    },
   });
 
   // Fetch user profile
-  const { data: userProfile } = useQuery<UserProfile>({
-    queryKey: ['/api/profile'],
+  const { data: userProfile } = useQuery<UserProfile | null>({
+    queryKey: ['user-profile'],
+    queryFn: () => {
+      return Promise.resolve(localStore.getUserProfile());
+    },
   });
 
   // Update manual goals form when dailyGoals are loaded
@@ -193,11 +192,14 @@ export default function NutritionTracker() {
   // Add food entry mutation
   const addFoodEntryMutation = useMutation({
     mutationFn: async (data: NutritionData & { description: string }) => {
-      const response = await apiRequest("POST", "/api/food/entries", data);
-      return response.json();
+      localStore.addFoodEntry({
+        ...data,
+        date: currentDateString,
+      });
+      return Promise.resolve({ success: true });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/food/entries', currentDateString] });
+      queryClient.invalidateQueries({ queryKey: ['food-entries', currentDateString] });
       setNutritionResult(null);
       form.reset();
       toast({
@@ -217,11 +219,11 @@ export default function NutritionTracker() {
   // Delete food entry mutation
   const deleteFoodEntryMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await apiRequest("DELETE", `/api/food/entries/${id}`);
-      return response.json();
+      localStore.deleteFoodEntry(id);
+      return Promise.resolve({ success: true });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/food/entries', currentDateString] });
+      queryClient.invalidateQueries({ queryKey: ['food-entries', currentDateString] });
       toast({
         title: "Food Entry Deleted",
         description: "The food entry has been removed from your log.",
@@ -259,11 +261,14 @@ export default function NutritionTracker() {
   // Add exercise entry mutation
   const addExerciseEntryMutation = useMutation({
     mutationFn: async (data: { activity: string; caloriesBurned: number; duration: number }) => {
-      const response = await apiRequest("POST", "/api/exercise/entries", data);
-      return response.json();
+      localStore.addExerciseEntry({
+        ...data,
+        date: currentDateString,
+      });
+      return Promise.resolve({ success: true });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/exercise/entries', currentDateString] });
+      queryClient.invalidateQueries({ queryKey: ['exercise-entries', currentDateString] });
       setExerciseResult(null);
       exerciseForm.reset();
       toast({
@@ -283,11 +288,11 @@ export default function NutritionTracker() {
   // Delete exercise entry mutation
   const deleteExerciseEntryMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await apiRequest("DELETE", `/api/exercise/entries/${id}`);
-      return response.json();
+      localStore.deleteExerciseEntry(id);
+      return Promise.resolve({ success: true });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/exercise/entries', currentDateString] });
+      queryClient.invalidateQueries({ queryKey: ['exercise-entries', currentDateString] });
       toast({
         title: "Exercise Entry Deleted",
         description: "The exercise entry has been removed from your log.",
@@ -332,11 +337,14 @@ export default function NutritionTracker() {
   // Manual goals mutation
   const saveManualGoalsMutation = useMutation({
     mutationFn: async (data: ManualGoalsRequest) => {
-      const response = await apiRequest("POST", "/api/goals/manual", data);
-      return response.json();
+      localStore.setDailyGoals({
+        id: 1,
+        ...data,
+      });
+      return Promise.resolve({ success: true });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+      queryClient.invalidateQueries({ queryKey: ['daily-goals'] });
       toast({
         title: "Goals Updated",
         description: "Your nutrition goals have been updated successfully.",
